@@ -35,6 +35,69 @@
             transform: translate(-50%, -50%);
             pointer-events: none;
         }
+        
+        /* Mobile controls */
+        #mobile-controls {
+            display: none;
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+        }
+        
+        #joystick-area {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            width: 120px;
+            height: 120px;
+            background-color: rgba(255, 255, 255, 0.2);
+            border-radius: 60px;
+            pointer-events: auto;
+        }
+        
+        #joystick {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 50px;
+            height: 50px;
+            background-color: rgba(255, 255, 255, 0.5);
+            border-radius: 25px;
+            transform: translate(-50%, -50%);
+        }
+        
+        #shoot-button {
+            position: absolute;
+            bottom: 40px;
+            right: 40px;
+            width: 80px;
+            height: 80px;
+            background-color: rgba(255, 0, 0, 0.5);
+            border-radius: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            pointer-events: auto;
+        }
+        
+        /* Mobile instructions */
+        #mobile-instructions {
+            display: none;
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background-color: rgba(0, 0, 0, 0.5);
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+            font-size: 14px;
+            pointer-events: none;
+        }
     </style>
 </head>
 <body>
@@ -47,12 +110,27 @@
         <p>Left Click - Shoot</p>
     </div>
     
+    <div id="mobile-instructions">
+        <h3>Mobile Controls:</h3>
+        <p>Left joystick - Move</p>
+        <p>Swipe screen - Look around</p>
+        <p>Red button - Shoot</p>
+    </div>
+    
     <!-- Add crosshair -->
     <div id="crosshair">
         <svg width="20" height="20" xmlns="http://www.w3.org/2000/svg">
             <circle cx="10" cy="10" r="8" stroke="white" stroke-width="2" fill="none" opacity="0.8"/>
             <circle cx="10" cy="10" r="1" fill="white" opacity="0.8"/>
         </svg>
+    </div>
+    
+    <!-- Mobile controls -->
+    <div id="mobile-controls">
+        <div id="joystick-area">
+            <div id="joystick"></div>
+        </div>
+        <div id="shoot-button">SHOOT</div>
     </div>
     
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -92,6 +170,12 @@
             TREES: 0xE67E22,
             TREE_TRUNK: 0x5D4037
         };
+        
+        // Add mobile detection
+        let isMobile = false;
+        let joystickTouch = null;
+        let cameraTouch = null;
+        let joystickPosition = { x: 0, y: 0 };
         
         init();
         animate();
@@ -135,6 +219,9 @@
             
             // Handle window resize
             window.addEventListener('resize', onWindowResize, false);
+            
+            // Check if mobile device
+            checkMobile();
         }
         
         function addLights() {
@@ -873,6 +960,153 @@
             const z = camera.position.z + Math.sin(angle) * radius;
             
             createZombie(x, 0, z);
+        }
+        
+        function checkMobile() {
+            isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+            
+            if (isMobile) {
+                // Show mobile controls
+                document.getElementById('mobile-controls').style.display = 'block';
+                document.getElementById('mobile-instructions').style.display = 'block';
+                document.getElementById('instructions').style.display = 'none';
+                
+                // Set up mobile controls
+                setupMobileControls();
+            }
+        }
+        
+        function setupMobileControls() {
+            // Joystick controls
+            const joystickArea = document.getElementById('joystick-area');
+            const joystick = document.getElementById('joystick');
+            const joystickRect = joystickArea.getBoundingClientRect();
+            const centerX = joystickRect.width / 2;
+            const centerY = joystickRect.height / 2;
+            
+            // Joystick touch events
+            joystickArea.addEventListener('touchstart', function(e) {
+                e.preventDefault();
+                joystickTouch = e.changedTouches[0].identifier;
+                updateJoystickPosition(e.changedTouches[0]);
+            });
+            
+            joystickArea.addEventListener('touchmove', function(e) {
+                e.preventDefault();
+                for (let i = 0; i < e.changedTouches.length; i++) {
+                    if (e.changedTouches[i].identifier === joystickTouch) {
+                        updateJoystickPosition(e.changedTouches[i]);
+                        break;
+                    }
+                }
+            });
+            
+            joystickArea.addEventListener('touchend', function(e) {
+                e.preventDefault();
+                for (let i = 0; i < e.changedTouches.length; i++) {
+                    if (e.changedTouches[i].identifier === joystickTouch) {
+                        joystickTouch = null;
+                        joystick.style.transform = 'translate(-50%, -50%)';
+                        joystickPosition = { x: 0, y: 0 };
+                        moveForward = moveBackward = moveLeft = moveRight = false;
+                        break;
+                    }
+                }
+            });
+            
+            function updateJoystickPosition(touch) {
+                const rect = joystickArea.getBoundingClientRect();
+                let x = touch.clientX - rect.left - centerX;
+                let y = touch.clientY - rect.top - centerY;
+                
+                // Limit joystick movement to the area
+                const distance = Math.sqrt(x * x + y * y);
+                const maxDistance = centerX - joystick.clientWidth / 2;
+                
+                if (distance > maxDistance) {
+                    x = (x / distance) * maxDistance;
+                    y = (y / distance) * maxDistance;
+                }
+                
+                joystick.style.transform = `translate(calc(-50% + ${x}px), calc(-50% + ${y}px))`;
+                
+                // Normalize joystick position for movement
+                joystickPosition.x = x / maxDistance;
+                joystickPosition.y = y / maxDistance;
+                
+                // Set movement flags based on joystick position
+                moveForward = joystickPosition.y < -0.3;
+                moveBackward = joystickPosition.y > 0.3;
+                moveLeft = joystickPosition.x < -0.3;
+                moveRight = joystickPosition.x > 0.3;
+            }
+            
+            // Camera rotation with touch
+            document.addEventListener('touchstart', function(e) {
+                // Ignore touches on controls
+                if (e.target.id === 'joystick-area' || e.target.id === 'joystick' || 
+                    e.target.id === 'shoot-button') {
+                    return;
+                }
+                
+                // Use the first touch that's not on controls for camera rotation
+                for (let i = 0; i < e.touches.length; i++) {
+                    if (e.touches[i].identifier !== joystickTouch) {
+                        cameraTouch = {
+                            id: e.touches[i].identifier,
+                            startX: e.touches[i].clientX,
+                            startY: e.touches[i].clientY,
+                            lastX: e.touches[i].clientX,
+                            lastY: e.touches[i].clientY
+                        };
+                        break;
+                    }
+                }
+            });
+            
+            document.addEventListener('touchmove', function(e) {
+                if (!cameraTouch) return;
+                
+                for (let i = 0; i < e.touches.length; i++) {
+                    if (e.touches[i].identifier === cameraTouch.id) {
+                        const movementX = e.touches[i].clientX - cameraTouch.lastX;
+                        const movementY = e.touches[i].clientY - cameraTouch.lastY;
+                        
+                        // Update camera rotation based on touch movement
+                        const rotationY = camera.rotation.y;
+                        const rotationX = camera.rotation.x;
+                        
+                        camera.rotation.y -= movementX * 0.01;
+                        camera.rotation.x -= movementY * 0.01;
+                        
+                        // Clamp vertical rotation to avoid flipping
+                        camera.rotation.x = Math.max(-Math.PI/2 + 0.1, Math.min(Math.PI/2 - 0.1, camera.rotation.x));
+                        
+                        // Update last position
+                        cameraTouch.lastX = e.touches[i].clientX;
+                        cameraTouch.lastY = e.touches[i].clientY;
+                        break;
+                    }
+                }
+            });
+            
+            document.addEventListener('touchend', function(e) {
+                if (!cameraTouch) return;
+                
+                for (let i = 0; i < e.changedTouches.length; i++) {
+                    if (e.changedTouches[i].identifier === cameraTouch.id) {
+                        cameraTouch = null;
+                        break;
+                    }
+                }
+            });
+            
+            // Shoot button
+            const shootButton = document.getElementById('shoot-button');
+            shootButton.addEventListener('touchstart', function(e) {
+                e.preventDefault();
+                shootBullet();
+            });
         }
     </script>
 </body>
